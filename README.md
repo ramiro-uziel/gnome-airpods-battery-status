@@ -1,5 +1,10 @@
 # Airpods Battery Status
 
+
+    This fork is my attempt to port this extension to Gnome Shell 45. Keep in mind I did this over one night without sleeping. Most of it is janky and bad, but it kind of works. Please don't expect it to work consistently. If you know proper ESM please modify this lmao.
+
+---
+
 A Gnome Shell Extension to display the battery levels of your Airpods (and case) in the top bar.
 
 ![Airpods Battery Status](https://github.com/delphiki/gnome-airpods-battery-status/raw/main/screenshot.png)
