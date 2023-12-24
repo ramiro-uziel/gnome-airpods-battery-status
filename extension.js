@@ -1,24 +1,21 @@
-/**
- * Created by Julien "delphiki" Villetorte (delphiki@protonmail.com)
- */
-const Main = imports.ui.main;
-const { Clutter, GLib, St, Gio } = imports.gi;
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import GLib from 'gi://GLib';
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
+import Gio from 'gi://Gio';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 const ByteArray = imports.byteArray;
-const Mainloop = imports.mainloop;
-const PanelMenu = imports.ui.panelMenu;
-const Me = imports.misc.extensionUtils.getCurrentExtension();
-const PopupMenu = imports.ui.popupMenu;
 
-
-let batteryStatus;
 let statusFilePath = '/tmp/airstatus.out';
 let cacheTTL = 3600;
 
-class AipodsBatteryStatus {
-    constructor(filePath) {
-        this._statusFilePath = filePath;
+class AipodsBatteryStatus extends Extension {
+    constructor(extensionMeta) {
+        super(extensionMeta);
+        this._statusFilePath = statusFilePath;
         this._panelMenuButton = null;
-
         this._timer = null;
         this._currentStatusValue = {};
         this._cache = {
@@ -49,24 +46,27 @@ class AipodsBatteryStatus {
         this.updateBatteryStatus();
     }
 
-    getCurrentStatus() {
+    getCurrentStatus() {            
         Log("getCurrentStatus");
-
+        if (typeof this._statusFilePath !== 'string') {
+            console.error('Invalid status file path:', this._statusFilePath);
+            return {};
+        }
+    
         if (!GLib.file_test(this._statusFilePath, GLib.FileTest.EXISTS)) {
             return {};
         }
-
         let fileContents = GLib.file_get_contents(this._statusFilePath)[1];
-
+    
         let lines;
         if (fileContents instanceof Uint8Array) {
             lines = ByteArray.toString(fileContents).trim().split('\n');
         } else {
             lines = fileContents.toString().trim().split('\n');
         }
-
+    
         let lastLine = lines[lines.length - 1];
-
+    
         return lastLine.length > 0 ? JSON.parse(lastLine) : {};
     }
 
@@ -74,7 +74,7 @@ class AipodsBatteryStatus {
         Log("updateBatteryStatus");
 
         this._currentStatusValue = this.getCurrentStatus();
-
+        
         let charge = this._currentStatusValue.hasOwnProperty("charge") ? this._currentStatusValue.charge : {};
         let statusDate = this._currentStatusValue.hasOwnProperty('date') ? Date.parse(this._currentStatusValue.date) : null;
         let now = Date.now();
@@ -147,7 +147,7 @@ class AipodsBatteryStatus {
         });
 
         this._icon = new St.Icon({
-            gicon: Gio.icon_new_for_string(Me.path + '/airpods.svg'),
+            gicon: Gio.icon_new_for_string(this.path.toString() + '/airpods.svg'),
             style_class: "system-status-icon",
         });
 
@@ -158,7 +158,7 @@ class AipodsBatteryStatus {
         });
 
         this._caseIcon = new St.Icon({
-            gicon: Gio.icon_new_for_string(Me.path + '/case.svg'),
+            gicon: Gio.icon_new_for_string(this.path.toString() + '/case.svg'),
             style_class: "system-status-icon",
         });
 
@@ -225,8 +225,8 @@ class AipodsBatteryStatus {
     enable() {
         Log("enable");
         this.updateBatteryStatus();
-
-        this._timer = Mainloop.timeout_add_seconds(10, () => {
+    
+        this._timer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
             this.updateBatteryStatus();
             return GLib.SOURCE_CONTINUE;
         });
@@ -234,27 +234,37 @@ class AipodsBatteryStatus {
 
     disable() {
         Log("disable");
-
+    
         this._panelMenuButton.destroy();
         Main.panel.statusArea["AirpodsBatteryStatus"] = null;
-
+    
         if (this._timer) {
-            Mainloop.source_remove(this._timer);
+            GLib.source_remove(this._timer);
             this._timer = null;
         }
     }
 }
 
-function enable() {
-    batteryStatus = new AipodsBatteryStatus(statusFilePath);
-    Main.panel.statusArea["AirpodsBatteryStatus"] = null;
+export default class AirpodsBatteryStatusExtension {
+    constructor(extensionMeta) {
+        this.batteryStatus = null;
+        this.extensionMeta = extensionMeta;
+    }
 
-    batteryStatus.enable();
-}
+    enable() {
+        if (!this.batteryStatus) {
+            this.batteryStatus = new AipodsBatteryStatus(this.extensionMeta);
+            this.batteryStatus.enable();
+        }
+    }
 
-function disable() {
-    batteryStatus.disable();
-    batteryStatus = null;
+    disable() {
+        if (this.batteryStatus) {
+            this.batteryStatus.disable();
+            Main.panel.statusArea["AirpodsBatteryStatus"] = null;
+            this.batteryStatus = null;
+        }
+    }
 }
 
 let Log = function(msg) {
