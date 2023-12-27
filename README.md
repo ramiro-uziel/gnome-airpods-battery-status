@@ -7,7 +7,7 @@
 
 ---
 
-A GNOME Shell Extension to display the battery levels of your AirPods (and case... sometimes) in the top bar.
+A GNOME Shell Extension to display the battery levels of your AirPods in the top bar.
 
 <div align="center">
   
