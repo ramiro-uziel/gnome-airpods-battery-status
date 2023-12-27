@@ -155,7 +155,6 @@ class AipodsBatteryStatus extends Extension {
 
     if (this.areAllMenuItemsHidden()) {
       this._averageAirpodLabel.hide();
-      // this.adjustLayoutForHiddenElements();
     } else {
       this._averageAirpodLabel.show();
     }
