@@ -46,6 +46,9 @@ class AipodsBatteryStatus extends Extension {
     this.buildLayout();
 
     this.updateBatteryStatus();
+
+    this._lastValidUpdateTime = null;
+    this._updateTimeout = 60;
   }
 
   getCurrentStatus() {
@@ -100,6 +103,8 @@ class AipodsBatteryStatus extends Extension {
     let cacheLimitDate = now - cacheTTL * 1000;
     let statusTooOld = statusDate < cacheLimitDate;
 
+    let validUpdateReceived = false;
+
     ["left", "right"].forEach((chargeable) => {
       if (
         !statusTooOld &&
@@ -112,6 +117,7 @@ class AipodsBatteryStatus extends Extension {
           charge[chargeable] + " %"
         );
         this._cache[chargeable + "UpdatedAt"] = statusDate;
+        validUpdateReceived = true;
       } else if (
         this._cache[chargeable + "UpdatedAt"] === null ||
         this._cache[chargeable + "UpdatedAt"] < cacheLimitDate
@@ -153,10 +159,17 @@ class AipodsBatteryStatus extends Extension {
 
     let average = count > 0 ? sum / count : 0;
 
-    if (this.areAllMenuItemsHidden()) {
-      this._averageAirpodLabel.hide();
-    } else {
+    if (validUpdateReceived) {
+      this._lastValidUpdateTime = now;
       this._averageAirpodLabel.show();
+      if (average > 0) {
+        this._averageAirpodLabel.set_text(average.toFixed(0) + " %");
+      }
+    } else if (
+      this._lastValidUpdateTime &&
+      now - this._lastValidUpdateTime > this._updateTimeout * 1000
+    ) {
+      this._averageAirpodLabel.hide();
     }
 
     if (average > 0) {
