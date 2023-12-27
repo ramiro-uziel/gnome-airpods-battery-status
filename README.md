@@ -48,6 +48,7 @@ $ git clone https://github.com/ramiro-uziel/gnome-airpods-battery-status .
 
 ## To-do
 - [x] Hide dash value with timeout instead of -1 battery value.
+- [ ] Add timeout for regular values
 - [ ] Add icon switching depending on model string.
 - [ ] Fix python script not recognizing the headphones sometimes.
 - [ ] Add settings menu.
