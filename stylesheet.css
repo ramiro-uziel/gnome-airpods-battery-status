@@ -1,0 +1,12 @@
+.airpods-pro-icon {
+    background-image: url("/airpods.svg");
+    background-size: 24px;
+}
+
+.average-airpod-label {
+    margin-left: 7px;
+}
+
+.sub-menu-item-no-icon {
+    margin-left: 2px;
+}
