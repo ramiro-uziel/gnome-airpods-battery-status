@@ -48,7 +48,7 @@ class AipodsBatteryStatus extends Extension {
     this.updateBatteryStatus();
 
     this._lastValidUpdateTime = null;
-    this._updateTimeout = 60;
+    this._updateTimeout = 120;
   }
 
   getCurrentStatus() {
