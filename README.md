@@ -1,7 +1,7 @@
 # AirPods Battery Status for GNOME 45
 
 > [!NOTE]
-> This fork is my attempt to port this extension to Gnome Shell 45. I also added some tweaks. Keep in mind I have not made anything with GNOME's JavaScript implementation before this. It kind of works but it isn't consistent (because of the python script mostly). If you know proper ESM feel free to look at it, laugh, and then help please.
+> This fork is my attempt to port this extension to Gnome Shell 45. I also added some tweaks. Keep in mind I have not made anything with GNOME's JavaScript implementation before this. It kind of works but it isn't consistent (because of the python script mostly). If you know proper GJS feel free to look at it, laugh, and then help please.
 >
 > Also take a look at the python script. I haven't edited much except just renaming the model output for the JSON parsing in the extension. Sometimes it doesn't recognize the device and outputs wrong data. I had to add a lot of workarounds in the extension so it didn't feel as broken. A better python/bluetooth implementation is needed.
 
