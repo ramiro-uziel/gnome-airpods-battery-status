@@ -19,13 +19,28 @@ A GNOME Shell Extension to display the battery levels of your AirPods in the top
 
 </div>
 
+## Features
+- Shows average value of Pods' batteries
+- Hides icons when the battery value is null, and dash value when all values are null. Has 3 minute timeout to hide them.
+- Shows charging status with Adawita icons
+- Shows the time of the last update
+- Reimplementation of AirStatus Python script
+
+Has support for
+- AirPods 1
+- AirPods 2
+- AirPods 3
+- AirPods Pro
+- AirPods Pro 2
+- AirPods Max
+
 ## Installation
 ### Helper Python script
 
 Let's install the python script (from this repo) as a service.
 
 Create the file /etc/systemd/system/airstatus.service (as root) containing:
-```bash
+```
 [Unit]
 Description=AirPods Battery Monitor
 
