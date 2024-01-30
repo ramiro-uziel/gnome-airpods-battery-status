@@ -93,4 +93,4 @@ Restart the system and enable the extension.
 
 This is a fork of [this gnome extension from delphiki](https://github.com/delphiki/gnome-airpods-battery-status).
 
-The python script is a modified version of [this script by andirsun](https://github.com/andirsun/gnome-shell-extention-airpods-battery).
+The python script is a modified version of [this script by andirsun](https://github.com/andirsun/gnome-shell-extention-airpods-battery/blob/main/airpods_battery.py).
