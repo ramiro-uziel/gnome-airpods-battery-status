@@ -18,7 +18,6 @@ MAX_LINES = 10
 FILE_NAME = "/tmp/airstatus.out"
 
 def model_from_raw(raw: bytes) -> str:
-    # On 7th position we can get AirPods model, gen1, gen2, Pro or Max
     if chr(raw[7]) == 'e':
         return "AirPods Pro"
     elif chr(raw[7]) == '4':
@@ -73,7 +72,6 @@ async def fetch_airpods_raw_data() -> Optional[bytes]:
     return None
 
 def parse_airpods_data(raw: bytes) -> dict:
-    # Return blank data if airpods not found
     if not raw:
         return dict(status=0, model="AirPods not found")
 
@@ -103,7 +101,6 @@ def parse_airpods_data(raw: bytes) -> dict:
     charging_right:bool = (charging_status & (0b00000001 if flip else 0b00000010)) != 0
     charging_case:bool = (charging_status & 0b00000100) != 0
 
-    # Return result info in dict format
     if model == "Unknown Model":
         return dict(
             status=0,
@@ -134,7 +131,6 @@ def is_bluetooth_adapter_powered_on(timeout_seconds=30):
     start_time = time.time()
     while time.time() - start_time < timeout_seconds:
         try:
-            # Using bluetoothctl to check the power state of the adapter
             result = subprocess.run(["bluetoothctl", "show"], capture_output=True, text=True)
             if "Powered: yes" in result.stdout:
                 return True
@@ -146,18 +142,15 @@ def is_bluetooth_adapter_powered_on(timeout_seconds=30):
 async def main(max_lines=MAX_LINES, output_to_terminal=False):
     output_lines = deque(maxlen=max_lines)
 
-    # Read existing file content if file exists
     try:
         with open(FILE_NAME, "r") as file:
             existing_lines = file.readlines()
-            # Load existing lines into the deque, keeping the most recent 'max_lines'
             for line in existing_lines[-max_lines:]:
                 output_lines.append(line)
     except FileNotFoundError:
-        pass  # File does not exist, proceed with an empty deque
+        pass 
 
     try:
-        # Wait for Bluetooth adapter to be ready
         if not is_bluetooth_adapter_powered_on():
             print("Bluetooth adapter not ready. Exiting.")
             sys.exit(1)
@@ -176,7 +169,7 @@ async def main(max_lines=MAX_LINES, output_to_terminal=False):
                         )
                 with open(FILE_NAME, "w") as file:
                     file.writelines(output)
-                sys.exit(1)  # Exit the program gracefully
+                sys.exit(1)
                 
             if raw_data is None:
                 output = json.dumps(dict(status=0, model="AirPods not found", date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
@@ -188,7 +181,6 @@ async def main(max_lines=MAX_LINES, output_to_terminal=False):
 
             output_lines.append(output + '\n')
 
-            # Write to file
             with open(FILE_NAME, "w") as file:
                 file.writelines(output_lines)
 
