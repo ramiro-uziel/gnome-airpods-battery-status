@@ -36,11 +36,19 @@ Has support for
 
 ## Installation
 
-Clone this repo somewhere. Then install the helper python script and the GNOME Shell extension.
+### GNOME Shell Extension
+
+First clone the extension's repo by doing the following:
+```shell
+$ mkdir -p ~/.local/share/gnome-shell/extensions/airpods-battery-status@dubstep.yeah
+$ cd ~/.local/share/gnome-shell/extensions/airpods-battery-status@dubstep.yeah
+$ git clone https://github.com/ramiro-uziel/gnome-airpods-battery-status .
+```
+Don't enable the extension until you do the next step.
 
 ### Helper Python script
 
-Let's install the python script (from this repo) as a service.
+Install the python script (from this repo) as a service.
 
 Create the file /etc/systemd/system/airstatus.service (as root) containing:
 ```
@@ -67,14 +75,8 @@ And finally enable the service on boot:
 sudo systemctl enable airstatus
 ```
 
-### GNOME Shell Extension
+Restart the system and enable the extension.
 
-Do this:
-```shell
-$ mkdir -p ~/.local/share/gnome-shell/extensions/airpods-battery-status@dubstep.yeah
-$ cd ~/.local/share/gnome-shell/extensions/airpods-battery-status@dubstep.yeah
-$ git clone https://github.com/ramiro-uziel/gnome-airpods-battery-status .
-```
 ## Changelog
 - Updated for GNOME 45
 - New dash icon
