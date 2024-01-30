@@ -1,7 +1,7 @@
 # AirPods Battery Status for GNOME 45
 
 > [!CAUTION]
-> 1. The borrowed python script is currently very unreliable and unstable (Outputs wrong battery values, has a Bluez related system crash). A better python/bluetooth implementation is needed.
+> 1. The python script is currently unstable and has not been properly tested (Sometimes it reads the wrong model, has a Bluez related system crash). It may crash when the system is suspended. A better python/bluetooth implementation is needed.
 > 2. I'm not very experienced with GJS. If you know proper GJS feel free to contribute. The extension is not tested extensively.
 ---
 
@@ -9,23 +9,47 @@ A GNOME Shell Extension to display the battery levels of your AirPods in the top
 
 <div align="center">
   
-| ![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot.png) | 
+| ![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/images/screenshot.png) | 
 |:--:| 
 | *Shows the average of the Pods' battery reads. Changed the icon to the AirPods Pro 2. I could add icon switching depending on the device.*|
 
-| ![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot2.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot2.png) | 
+| ![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot2.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/images/screenshot2.png) | 
 |:--:| 
 | *Popup menu with less stuff on it. Also displays the time from the last read.*|
 
 </div>
 
-## Requirements
-
-Install [main.py](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/main.py) script (from this repo) as a service, using `/tmp/airstatus.out` as output file.
-
-I got it from [this repo (AirStatus)](https://github.com/delphiki/AirStatus).
-
 ## Installation
+### Helper Python script
+
+Let's install the python script (from this repo) as a service.
+
+Create the file /etc/systemd/system/airstatus.service (as root) containing:
+```bash
+[Unit]
+Description=AirPods Battery Monitor
+
+[Service]
+ExecStart=/usr/bin/python3 /PATH/TO/main.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+```
+
+Then start the service:
+
+```
+sudo systemctl start airstatus
+```
+
+And finally enable the service on boot:
+```
+sudo systemctl enable airstatus
+```
+
+### GNOME Extension
 
 Do this:
 ```shell
@@ -37,18 +61,17 @@ $ git clone https://github.com/ramiro-uziel/gnome-airpods-battery-status .
 - Updated for GNOME 45
 - New dash icon
 - The battery value in the dash is the average of both Pods' batteries
-- Hides icons when the battery value is -1, and dash value when all values are -1 (when AirPods disconnect, loose power or just glitch out)
+- Hides icons when the battery value is null, and dash value when all values are null (when AirPods disconnect, loose power or just glitch out). Has 3 minute timeout.
 - Shows charging status with icons instead of text
 - Shows the time of the last update
+- Reimplementation of AirStatus Python script
 
 ## To-do
-- [ ] Reimplementation of AirStatus Python script
-- [ ] Add timeout for certain values
 - [ ] Add icon switching depending on model string
 - [ ] Add settings menu
 
 ## Credit
-[AirStatus](https://github.com/delphiki/AirStatus)
 
-[Forks this](https://github.com/delphiki/gnome-airpods-battery-status)
+This is a fork of [this gnome extension from delphiki](https://github.com/delphiki/gnome-airpods-battery-status).
 
+The python script is a modified version of [this script by andirsun](https://github.com/andirsun/gnome-shell-extention-airpods-battery).
