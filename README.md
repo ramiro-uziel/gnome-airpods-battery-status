@@ -35,6 +35,9 @@ Has support for
 - AirPods Max
 
 ## Installation
+
+Clone this repo somewhere. Then install the helper python script and the GNOME Shell extension.
+
 ### Helper Python script
 
 Let's install the python script (from this repo) as a service.
@@ -64,7 +67,7 @@ And finally enable the service on boot:
 sudo systemctl enable airstatus
 ```
 
-### GNOME Extension
+### GNOME Shell Extension
 
 Do this:
 ```shell
