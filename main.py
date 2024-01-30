@@ -18,6 +18,7 @@ MAX_LINES = 10
 FILE_NAME = "/tmp/airstatus.out"
 
 def model_from_raw(raw: bytes) -> str:
+    # On 7th position we can get AirPods model, gen1, gen2, Pro or Max
     if chr(raw[7]) == 'e':
         return "AirPods Pro"
     elif chr(raw[7]) == '4':
@@ -72,13 +73,12 @@ async def fetch_airpods_raw_data() -> Optional[bytes]:
     return None
 
 def parse_airpods_data(raw: bytes) -> dict:
+    # Return blank data if airpods not found
     if not raw:
         return dict(status=0, model="AirPods not found")
 
     flip: bool = is_flipped(raw)
     
-    # On 7th position we can get AirPods model, gen1, gen2, Pro or Max
-
     model = model_from_raw(raw)
     if model is None:
         model = "Unknown Model"
@@ -101,6 +101,7 @@ def parse_airpods_data(raw: bytes) -> dict:
     charging_right:bool = (charging_status & (0b00000001 if flip else 0b00000010)) != 0
     charging_case:bool = (charging_status & 0b00000100) != 0
 
+    # Return result info in dict format
     if model == "Unknown Model":
         return dict(
             status=0,
@@ -141,10 +142,13 @@ def is_bluetooth_adapter_powered_on(timeout_seconds=30):
 
 async def main(max_lines=MAX_LINES, output_to_terminal=False):
     output_lines = deque(maxlen=max_lines)
+    file_exists = False
 
     try:
         with open(FILE_NAME, "r") as file:
             existing_lines = file.readlines()
+            if existing_lines:
+                file_exists = True
             for line in existing_lines[-max_lines:]:
                 output_lines.append(line)
     except FileNotFoundError:
@@ -179,7 +183,11 @@ async def main(max_lines=MAX_LINES, output_to_terminal=False):
             if output_to_terminal:
                 print(output)
 
-            output_lines.append(output + '\n')
+            if file_exists:
+                output_lines.append('\n' + output)
+            else:
+                output_lines.append(output)
+                file_exists = True
 
             with open(FILE_NAME, "w") as file:
                 file.writelines(output_lines)
