@@ -20,6 +20,7 @@ class AipodsBatteryStatus extends Extension {
     this._currentStatusValue = {};
     this._timer = null;
     this._lastValidUpdateTime = null;
+    this._lastStatusOneTime = null;
 
     this._cache = {
       leftUpdatedAt: null,
@@ -98,6 +99,9 @@ class AipodsBatteryStatus extends Extension {
     let cacheLimitDate = now - cacheTTL * 1000;
     let statusTooOld = statusDate < cacheLimitDate;
     let validUpdateReceived = false;
+    if (this._currentStatusValue.status === 1) {
+      this._lastStatusOneTime = Date.now();
+    }
 
     ["left", "right"].forEach((chargeable) => {
       if (
@@ -198,7 +202,10 @@ class AipodsBatteryStatus extends Extension {
       }
     });
 
-    let isDataFresh = statusDate && now - statusDate <= TIME_THRESHOLD;
+    let isDataFresh =
+      this._lastStatusOneTime &&
+      Date.now() - this._lastStatusOneTime <= TIME_THRESHOLD;
+
     if (isDataFresh) {
       if (!this._averageAirpodLabel.visible) {
         this._lastValidUpdateTime = now;
