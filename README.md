@@ -1,7 +1,7 @@
 # AirPods Battery Status for GNOME 45
 
 > [!CAUTION]
-> 1. The borrowed python script is currently very unreliable and unstable (Outputs wrong battey values, has a Bluez related system crash). A better python/bluetooth implementation is needed.
+> 1. The borrowed python script is currently very unreliable and unstable (Outputs wrong battery values, has a Bluez related system crash). A better python/bluetooth implementation is needed.
 > 2. I'm not very experienced with GJS. If you know proper GJS feel free to contribute. The extension is not tested extensively.
 ---
 
