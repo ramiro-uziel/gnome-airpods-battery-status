@@ -5,18 +5,22 @@ A GNOME Shell Extension to display the battery levels of your AirPods in the top
 > 1. The python script is currently unstable and has not been properly tested (Sometimes it reads the wrong model, has a Bluez related system crash). It may crash when the system is suspended. A better python/bluetooth implementation is needed.
 > 2. I'm not very experienced with GJS. If you know proper GJS feel free to contribute. The extension is not tested extensively.
 
-
 <div align="center">
   
-| ![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/images/screenshot.png) | 
-|:--:| 
-| *Shows the average of the Pods' battery reads. Changed the icon to the AirPods Pro 2. I could add icon switching depending on the device.*|
+![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/images/screenshot.png)
 
-| ![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot2.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/images/screenshot2.png) | 
-|:--:| 
-| *Popup menu with less stuff on it. Also displays the time from the last read.*|
+*Shows the average of the Pods' battery reads. Changed the icon to the AirPods Pro 2. I could add icon switching depending on the device.*
+
+![https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/screenshot2.png](https://github.com/ramiro-uziel/gnome-airpods-battery-status/blob/main/images/screenshot2.png)
+
+*Popup menu with less stuff on it. Also displays the time from the last read.*
+
+https://github.com/ramiro-uziel/gnome-airpods-battery-status/assets/132919483/5363321e-009c-4fb7-adab-dd15e94ec421
+
+*Connect and disconnect animations. Yes it's 4 am.*
 
 </div>
+
 
 ## Features
 - Shows average value of Pods' batteries
