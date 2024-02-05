@@ -1,5 +1,5 @@
 # AirPods Battery Status for GNOME 45
-A GNOME Shell Extension to display the battery levels of your AirPods in the top bar.
+A GNOME Shell Extension to display the battery level of your AirPods in the top bar.
 
 > [!CAUTION]
 > 1. The python script is currently unstable and has not been properly tested (Sometimes it reads the wrong model, has a Bluez related system crash). It may crash when the system is suspended. A better python/bluetooth implementation is needed.
