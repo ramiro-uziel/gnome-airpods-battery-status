@@ -1,3 +1,10 @@
+'''
+
+  Helper Python script for AirPods Battery Status extension.
+  Install as a systemd service.
+  
+'''
+
 import asyncio
 import functools
 import json
