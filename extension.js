@@ -7,17 +7,17 @@ import GLib from "gi://GLib";
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 import Gio from "gi://Gio";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 let outputFilepath = "/tmp/airstatus.out";
 let cacheTTL = 3600;
 const TIME_THRESHOLD = 0.25 * 60 * 1000;
-const CONTAINER_WIDTH = 64;
-const CONTAINER_WIDTH_LARGE = 76;
-const CONTAINER_WIDTH_SMALL = 60;
+const CONTAINER_WIDTH = 65;
+const CONTAINER_WIDTH_LARGE = 75;
+const CONTAINER_WIDTH_SMALL = 55;
 const CONTAINER_WIDTH_ICON = 35;
 const ICON_X = 22;
 const ICON_X_SMALL = 6;
@@ -59,22 +59,39 @@ class AirPodsBatteryStatus extends Extension {
 
   getOutputValues() {
     if (typeof this._outputFilePath !== "string") {
-      console.error("Invalid status file path:", this._outputFilePath);
-      return {};
+      throw new Error("Invalid status file path: " + this._outputFilePath);
     }
     if (!GLib.file_test(this._outputFilePath, GLib.FileTest.EXISTS)) {
-      return {};
+      Main.notifyError(
+        "AirPods Battery Status",
+        "The output file does not exist or isn't accessible. Make sure the helper Python script is installed and running."
+      );
+      throw new Error(
+        "The output file does not exist or isn't accessible. Make sure the helper Python script is installed and running. Check this extension's website for instructions."
+      );
     }
+
     let fileContents = GLib.file_get_contents(this._outputFilePath)[1];
-    let lines;
     if (fileContents instanceof Uint8Array) {
       const decoder = new TextDecoder("utf-8");
-      lines = decoder.decode(fileContents).trim().split("\n");
+      fileContents = decoder.decode(fileContents);
     } else {
-      lines = fileContents.toString().trim().split("\n");
+      fileContents = fileContents.toString();
     }
+
+    let lines = fileContents.trim().split("\n");
     let lastLine = lines[lines.length - 1];
-    return lastLine.length > 0 ? JSON.parse(lastLine) : {};
+
+    try {
+      return lastLine.length > 0 ? JSON.parse(lastLine) : {};
+    } catch (e) {
+      throw new Error(
+        "Failed to parse the output file: " +
+          this._outputFilePath +
+          " Error: " +
+          e.message
+      );
+    }
   }
 
   formatDate(dateString) {
@@ -116,6 +133,8 @@ class AirPodsBatteryStatus extends Extension {
       );
     }
   }
+
+  // update...Status functions show/hide elements and update their labels
 
   updateEarbudStatus(earbud, chargeItems, statusDate) {
     if (chargeItems.hasOwnProperty(earbud)) {
@@ -166,8 +185,10 @@ class AirPodsBatteryStatus extends Extension {
     }
   }
 
+  // topbar... functions update the topbar elements based on the charge percentage,
+  // show/hide the average label, and manage animations for the icon and average label
+
   topbarUpdateValidData(sum, count) {
-    logMessage("Valid data.");
     if (count > 0) {
       let average = this.getAverage(sum, count);
       if (average > 99) {
@@ -183,27 +204,20 @@ class AirPodsBatteryStatus extends Extension {
       if (!isNaN(average)) {
         if (!this._averageAirpodLabel.visible) {
           this._lastValidUpdateTime = Date.now();
+          this._lastUpdateMenuItem.show();
           this._icon.x = ICON_X_SMALL + 30;
           this._icon.ease({
             x: 0,
-            duration: 800, // Longer duration for the elastic effect
-            mode: Clutter.AnimationMode.ELASTIC, // Applying ELASTIC mode
+            duration: 800,
+            mode: Clutter.AnimationMode.ELASTIC,
           });
           this._averageAirpodLabel.show();
           this._averageAirpodLabel.x = AVERAGE_LABEL_X;
           this._averageAirpodLabel.ease({
             opacity: 255,
             duration: 400,
-            mode: Clutter.AnimationMode.ELASTIC,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
           });
-          // Use ELASTIC animation mode for the icon's x position
-          // Smoothly adjust the container width
-          /*
-          this._container.ease({
-            width: CONTAINER_WIDTH,
-            duration: 100,
-          });
-          */
         }
         this._averageAirpodLabel.set_text(average.toFixed(0) + "%");
       }
@@ -212,7 +226,6 @@ class AirPodsBatteryStatus extends Extension {
 
   topbarUpdateStaleData() {
     if (this._averageAirpodLabel.visible) {
-      logMessage("Stale data.");
       this._container.set_width(CONTAINER_WIDTH);
       this._averageAirpodLabel.x = AVERAGE_LABEL_X - 30;
       this._averageAirpodLabel.ease({
@@ -236,12 +249,14 @@ class AirPodsBatteryStatus extends Extension {
     this._subMenuCaseChargingItem.hide();
   }
 
+  // Check if the output is expired based on the cache limit date.
   isOutputExpired(statusDate) {
     let now = Date.now();
     let cacheLimitDate = now - cacheTTL * 1000;
     return statusDate < cacheLimitDate;
   }
 
+  // Check recency based on the user set threshold
   isDataRecent() {
     return (
       this._lastValidFileTime &&
@@ -287,6 +302,7 @@ class AirPodsBatteryStatus extends Extension {
     return true;
   }
 
+  // For topbar and menu
   buildLayout() {
     this._container = new St.Widget();
     this._leftAirpodLabel = new St.Label({
@@ -310,6 +326,7 @@ class AirPodsBatteryStatus extends Extension {
       style_class: "average-airpod-label",
       y: 6,
       x: AVERAGE_LABEL_X,
+      opacity: 0,
     });
     this._averageAirpodLabel.hide();
     this._rightAirpodLabel = new St.Label({
@@ -327,7 +344,9 @@ class AirPodsBatteryStatus extends Extension {
       y_align: Clutter.ActorAlign.CENTER,
       style_class: "right-airpod-label",
     });
-    this._lastUpdateMenuItem = new PopupMenu.PopupMenuItem("Last updated: ...");
+    this._lastUpdateMenuItem = new PopupMenu.PopupMenuItem(
+      "Last Update Is Unknown"
+    );
     this._lastUpdateMenuItem.actor.add_style_class_name(
       "sub-menu-item-no-icon"
     );
@@ -370,6 +389,9 @@ class AirPodsBatteryStatus extends Extension {
       this._panelMenuButton,
       1
     );
+    this._subMenuLeftChargingItem.hide();
+    this._subMenuRightChargingItem.hide();
+    this._subMenuCaseChargingItem.hide();
   }
 
   enable() {
