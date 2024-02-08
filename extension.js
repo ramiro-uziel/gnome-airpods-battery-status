@@ -1,27 +1,36 @@
+/*
+  AirPods Battery Status extension for GNOME Shell 45
+  Needs helper Python script to be installed as a systemd service
+*/
+
 import GLib from "gi://GLib";
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 import Gio from "gi://Gio";
-const ByteArray = imports.byteArray;
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-let statusFilePath = "/tmp/airstatus.out";
+let outputFilepath = "/tmp/airstatus.out";
 let cacheTTL = 3600;
-const TIME_THRESHOLD = 3 * 60 * 1000;
+const TIME_THRESHOLD = 0.25 * 60 * 1000;
+const CONTAINER_WIDTH = 65;
+const CONTAINER_WIDTH_LARGE = 75;
+const CONTAINER_WIDTH_SMALL = 55;
+const CONTAINER_WIDTH_ICON = 35;
+const ICON_X = 22;
+const ICON_X_SMALL = 6;
+const AVERAGE_LABEL_X = 24;
 
-class AipodsBatteryStatus extends Extension {
+class AirPodsBatteryStatus extends Extension {
   constructor(extensionMeta) {
     super(extensionMeta);
-
-    this._statusFilePath = statusFilePath;
-    this._currentStatusValue = {};
+    this._outputFilePath = outputFilepath;
+    this._outputValues = {};
     this._timer = null;
     this._lastValidUpdateTime = null;
-    this._lastStatusOneTime = null;
-
+    this._lastValidFileTime = null;
     this._cache = {
       leftUpdatedAt: null,
       rightUpdatedAt: null,
@@ -31,7 +40,6 @@ class AipodsBatteryStatus extends Extension {
       rightChargingUpdatedAt: null,
       caseChargingUpdatedAt: null,
     };
-
     this._panelMenuButton = null;
     this._container = null;
     this._leftAirpodLabel = null;
@@ -45,239 +53,263 @@ class AipodsBatteryStatus extends Extension {
     this._subMenuLeftChargingItem = null;
     this._subMenuRightChargingItem = null;
     this._subMenuCaseChargingItem = null;
-
     this.buildLayout();
-    this.updateBatteryStatus();
+    this.updateUI();
   }
 
-  // Get the current status from the status file in JSON format
-  getCurrentStatus() {
-    if (typeof this._statusFilePath !== "string") {
-      console.error("Invalid status file path:", this._statusFilePath);
-      return {};
+  getOutputValues() {
+    if (typeof this._outputFilePath !== "string") {
+      throw new Error("Invalid status file path: " + this._outputFilePath);
     }
-    if (!GLib.file_test(this._statusFilePath, GLib.FileTest.EXISTS)) {
-      return {};
+    if (!GLib.file_test(this._outputFilePath, GLib.FileTest.EXISTS)) {
+      Main.notifyError(
+        "AirPods Battery Status",
+        "The output file does not exist or isn't accessible. Make sure the helper Python script is installed and running."
+      );
+      throw new Error(
+        "The output file does not exist or isn't accessible. Make sure the helper Python script is installed and running. Check this extension's website for instructions."
+      );
     }
-    let fileContents = GLib.file_get_contents(this._statusFilePath)[1];
-    let lines;
+
+    let fileContents = GLib.file_get_contents(this._outputFilePath)[1];
     if (fileContents instanceof Uint8Array) {
-      lines = ByteArray.toString(fileContents).trim().split("\n");
+      const decoder = new TextDecoder("utf-8");
+      fileContents = decoder.decode(fileContents);
     } else {
-      lines = fileContents.toString().trim().split("\n");
+      fileContents = fileContents.toString();
     }
+
+    let lines = fileContents.trim().split("\n");
     let lastLine = lines[lines.length - 1];
-    return lastLine.length > 0 ? JSON.parse(lastLine) : {};
+
+    try {
+      return lastLine.length > 0 ? JSON.parse(lastLine) : {};
+    } catch (e) {
+      throw new Error(
+        "Failed to parse the output file: " +
+          this._outputFilePath +
+          " Error: " +
+          e.message
+      );
+    }
   }
 
-  // Update the battery status
-  updateBatteryStatus() {
-    this._currentStatusValue = this.getCurrentStatus();
-    let sum = 0;
-    let count = 0;
-
-    // Set last updated time
-    let lastUpdated = "Last update is unknown.";
-    if (this._currentStatusValue.hasOwnProperty("date")) {
-      let date = new Date(this._currentStatusValue.date);
+  formatDate(dateString) {
+    let formatted = "Last Update Is Unknown";
+    if (dateString) {
+      let date = new Date(dateString);
       let dateOptions = { year: "numeric", month: "short", day: "numeric" };
       let timeOptions = { hour: "2-digit", minute: "2-digit" };
       let formattedDate = date.toLocaleDateString(undefined, dateOptions);
       let formattedTime = date.toLocaleTimeString(undefined, timeOptions);
-      lastUpdated = formattedDate + "\n" + formattedTime;
+      formatted = formattedDate + "\n" + formattedTime;
     }
-    this._lastUpdateMenuItem.label.set_text(lastUpdated);
+    return formatted;
+  }
 
-    let charge = this._currentStatusValue.hasOwnProperty("charge")
-      ? this._currentStatusValue.charge
-      : {};
+  getAverage(sum, count) {
+    return sum / count;
+  }
 
-    let statusDate = this._currentStatusValue.hasOwnProperty("date")
-      ? Date.parse(this._currentStatusValue.date)
-      : null;
-    let now = Date.now();
-    let cacheLimitDate = now - cacheTTL * 1000;
-    let statusTooOld = statusDate < cacheLimitDate;
-    let validUpdateReceived = false;
-    if (this._currentStatusValue.status === 1) {
-      this._lastStatusOneTime = Date.now();
+  capitalize(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  }
+
+  getBatteryIcon(percentage, item) {
+    if (percentage < 0) {
+      return "battery-missing";
     }
+    let level = Math.floor(percentage / 10) * 10;
+    level = Math.min(level, 100);
+    let iconName = `battery-level-${level}`;
+    return iconName + (item ? "-charging" : "") + "-symbolic";
+  }
 
-    ["left", "right"].forEach((chargeable) => {
-      if (
-        !statusTooOld &&
-        charge.hasOwnProperty(chargeable) &&
-        charge[chargeable] !== -1
-      ) {
-        sum += charge[chargeable];
-        count++;
-        this["_" + chargeable + "AirpodLabel"].set_text(
-          charge[chargeable] + " %"
+  updateBatteryIcon(item, chargeItems, chargeStatus) {
+    if (chargeItems.hasOwnProperty(item) && chargeItems[item] !== -1) {
+      let iconName = this.getBatteryIcon(chargeItems[item], chargeStatus);
+      this["_subMenu" + this.capitalize(item) + "ChargingItem"].setIcon(
+        iconName
+      );
+    }
+  }
+
+  // update...Status functions show/hide elements and update their labels
+
+  updateEarbudStatus(earbud, chargeItems, statusDate) {
+    if (chargeItems.hasOwnProperty(earbud)) {
+      if (chargeItems[earbud] !== -1) {
+        this["_subMenu" + this.capitalize(earbud) + "ChargingItem"].label.text =
+          this.capitalize(earbud) + ": " + chargeItems[earbud] + "%";
+        this.updateBatteryIcon(
+          earbud,
+          chargeItems,
+          this._outputValues["charging_" + earbud]
         );
-        this._cache[chargeable + "UpdatedAt"] = statusDate;
-        validUpdateReceived = true;
-      } else if (
-        this._cache[chargeable + "UpdatedAt"] === null ||
-        this._cache[chargeable + "UpdatedAt"] < cacheLimitDate
-      ) {
-        this["_" + chargeable + "AirpodLabel"].set_text("...");
-      }
-    });
-
-    if (!statusTooOld && charge.hasOwnProperty("case")) {
-      if (charge.case !== -1) {
-        this._subMenuCaseChargingItem.label.text = "Case: " + charge.case + "%";
-        this._subMenuCaseChargingItem.show();
+        this["_subMenu" + this.capitalize(earbud) + "ChargingItem"].show();
+        this._cache[earbud + "UpdatedAt"] = statusDate;
       } else {
-        this._caseLabel.hide();
-        this._caseIcon.hide();
-        this._subMenuCaseChargingItem.hide();
-      }
-    } else if (
-      statusTooOld ||
-      this._cache.caseUpdatedAt === null ||
-      this._cache.caseUpdatedAt < cacheLimitDate
-    ) {
-      this._subMenuCaseChargingItem.hide();
-    }
-
-    if (!statusTooOld && this._currentStatusValue.hasOwnProperty("model")) {
-      if (this._currentStatusValue.model === "Unknown model") {
-        this._subMenuModelItem.label.set_text("Not connected");
-      } else {
-        this._subMenuModelItem.label.set_text(this._currentStatusValue.model);
-      }
-    } else if (
-      statusTooOld ||
-      this._cache.modelUpdatedAt === null ||
-      this._cache.modelUpdatedAt < cacheLimitDate
-    ) {
-      this._subMenuModelItem.label.set_text("No AirPods detected");
-    }
-
-    ["case", "left", "right"].forEach((chargeable) => {
-      if (
-        !statusTooOld &&
-        charge.hasOwnProperty(chargeable) &&
-        charge[chargeable] !== -1
-      ) {
-        if (chargeable === "case") {
-          this[
-            "_subMenu" + this.capitalize(chargeable) + "ChargingItem"
-          ].show();
-          this._caseLabel.set_text("Case: " + charge[chargeable] + "%");
-          this[
-            "_subMenu" + this.capitalize(chargeable) + "ChargingItem"
-          ].setIcon(
-            this.getBatteryIcon(
-              charge[chargeable],
-              this._currentStatusValue["charging_" + chargeable]
-            )
-          );
-        } else {
-          this[
-            "_subMenu" + this.capitalize(chargeable) + "ChargingItem"
-          ].show();
-          this[
-            "_subMenu" + this.capitalize(chargeable) + "ChargingItem"
-          ].label.text =
-            this.capitalize(chargeable) + ": " + charge[chargeable] + "%";
-          this[
-            "_subMenu" + this.capitalize(chargeable) + "ChargingItem"
-          ].setIcon(
-            this.getBatteryIcon(
-              charge[chargeable],
-              this._currentStatusValue["charging_" + chargeable]
-            )
-          );
-        }
-      } else {
-        if (chargeable === "case") {
-          this._caseLabel.set_text("Case: N/A");
-        } else {
-          this[
-            "_subMenu" + this.capitalize(chargeable) + "ChargingItem"
-          ].hide();
-        }
-      }
-    });
-
-    let isDataFresh =
-      this._lastStatusOneTime &&
-      Date.now() - this._lastStatusOneTime <= TIME_THRESHOLD;
-
-    if (isDataFresh) {
-      if (!this._averageAirpodLabel.visible) {
-        this._lastValidUpdateTime = now;
-        this._container.set_width(68);
-        this._averageAirpodLabel.show();
-        this._averageAirpodLabel.ease({
-          x: 24,
-          opacity: 255,
-          duration: 300,
-          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
-
-        this._icon.ease({
-          x: 0,
-          duration: 300,
-          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
-      }
-
-      if (sum > 0) {
-        let average = sum / count;
-        if (average === 100) {
-          this._container.set_width(75);
-        } else {
-          this._container.set_width(68);
-        }
-        this._averageAirpodLabel.set_text(average.toFixed(0) + " %");
+        this["_subMenu" + this.capitalize(earbud) + "ChargingItem"].hide();
       }
     } else {
-      if (this._averageAirpodLabel.visible) {
-        this._container.set_width(68);
-        this._averageAirpodLabel.ease({
-          opacity: 0,
-          duration: 300,
-          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-          onComplete: () => {
-            this._averageAirpodLabel.hide();
-          },
-        });
-
-        this._icon.ease({
-          x: 22,
-          duration: 300,
-          mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        });
-      }
-
-      this._subMenuLeftChargingItem.hide();
-      this._subMenuRightChargingItem.hide();
-      this._subMenuCaseChargingItem.hide();
-      this._subMenuModelItem.label.set_text("No AirPods detected");
+      this["_subMenu" + this.capitalize(earbud) + "ChargingItem"].hide();
     }
-    // Hide submenu labels if no valid update received
-    if (!validUpdateReceived) {
-      this._subMenuLeftChargingItem.hide();
-      this._subMenuRightChargingItem.hide();
-      this._subMenuCaseChargingItem.hide();
-      this._subMenuModelItem.label.set_text("No AirPods detected");
+  }
+
+  updateCaseStatus(chargeItems) {
+    if (chargeItems.hasOwnProperty("case")) {
+      if (chargeItems.case !== -1) {
+        this["_subMenuCaseChargingItem"].label.text =
+          "Case: " + chargeItems.case + "%";
+        this.updateBatteryIcon(
+          "case",
+          chargeItems,
+          this._outputValues["charging_case"]
+        );
+        this["_subMenuCaseChargingItem"].show();
+      } else {
+        this["_subMenuCaseChargingItem"].hide();
+      }
+    } else {
+      this["_subMenuCaseChargingItem"].hide();
+    }
+  }
+
+  updateModelInfo() {
+    if (this._outputValues.status === -1) {
+      this._subMenuModelItem.label.set_text("No Bluetooth");
+    } else if (this._outputValues.status === 1) {
+      this._subMenuModelItem.label.set_text(this._outputValues.model);
+    } else {
+      this._subMenuModelItem.label.set_text("No AirPods Detected");
+    }
+  }
+
+  // topbar... functions update the topbar elements based on the charge percentage,
+  // show/hide the average label, and manage animations for the icon and average label
+
+  topbarUpdateValidData(sum, count) {
+    if (count > 0) {
+      let average = this.getAverage(sum, count);
+      if (average > 99) {
+        this._container.set_width(CONTAINER_WIDTH_LARGE);
+        logMessage("Setting container width to large. Average is: " + average);
+      } else if (average < 10) {
+        this._container.set_width(CONTAINER_WIDTH_SMALL);
+        logMessage("Setting container width to small. Average is: " + average);
+      } else {
+        this._container.set_width(CONTAINER_WIDTH);
+        logMessage("Setting container width to normal. Average is: " + average);
+      }
+      if (!isNaN(average)) {
+        if (!this._averageAirpodLabel.visible) {
+          this._lastValidUpdateTime = Date.now();
+          this._lastUpdateMenuItem.show();
+          this._icon.x = ICON_X_SMALL + 30;
+          this._icon.ease({
+            x: 0,
+            duration: 800,
+            mode: Clutter.AnimationMode.ELASTIC,
+          });
+          this._averageAirpodLabel.show();
+          this._averageAirpodLabel.x = AVERAGE_LABEL_X;
+          this._averageAirpodLabel.ease({
+            opacity: 255,
+            duration: 400,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+          });
+        }
+        this._averageAirpodLabel.set_text(average.toFixed(0) + "%");
+      }
+    }
+  }
+
+  topbarUpdateStaleData() {
+    if (this._averageAirpodLabel.visible) {
+      this._container.set_width(CONTAINER_WIDTH);
+      this._averageAirpodLabel.x = AVERAGE_LABEL_X - 30;
+      this._averageAirpodLabel.ease({
+        opacity: 0,
+        duration: 400,
+        mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        onComplete: () => {
+          this._averageAirpodLabel.hide();
+        },
+      });
+      this._icon.x = ICON_X_SMALL - 30;
+      this._icon.ease({
+        x: ICON_X_SMALL,
+        duration: 800,
+        mode: Clutter.AnimationMode.ELASTIC,
+      });
+      this._container.set_width(CONTAINER_WIDTH_ICON);
+    }
+    this._subMenuLeftChargingItem.hide();
+    this._subMenuRightChargingItem.hide();
+    this._subMenuCaseChargingItem.hide();
+  }
+
+  // Check if the output is expired based on the cache limit date.
+  isOutputExpired(statusDate) {
+    let now = Date.now();
+    let cacheLimitDate = now - cacheTTL * 1000;
+    return statusDate < cacheLimitDate;
+  }
+
+  // Check recency based on the user set threshold
+  isDataRecent() {
+    return (
+      this._lastValidFileTime &&
+      Date.now() - this._lastValidFileTime <= TIME_THRESHOLD
+    );
+  }
+
+  isValidCharge(charge, chargeable) {
+    return charge.hasOwnProperty(chargeable) && charge[chargeable] !== -1;
+  }
+
+  updateUI() {
+    this._outputValues = this.getOutputValues();
+    let sum = 0;
+    let count = 0;
+    let lastUpdated = this.formatDate(this._outputValues.date);
+    this._lastUpdateMenuItem.label.set_text(lastUpdated);
+    let chargeItems = this._outputValues.hasOwnProperty("charge")
+      ? this._outputValues.charge
+      : {};
+    let statusDate = this._outputValues.hasOwnProperty("date")
+      ? Date.parse(this._outputValues.date)
+      : null;
+    if (this._outputValues.status === 1) {
+      this._lastValidFileTime = Date.now();
+    }
+    if (!this.isOutputExpired(statusDate)) {
+      ["left", "right"].forEach((item) => {
+        this.updateEarbudStatus(item, chargeItems);
+        if (this.isValidCharge(chargeItems, item)) {
+          sum += chargeItems[item];
+          count++;
+        }
+      });
+      this.updateCaseStatus(chargeItems);
+      this.updateModelInfo();
+      if (this.isDataRecent()) {
+        this.topbarUpdateValidData(sum, count);
+      } else {
+        this.topbarUpdateStaleData();
+      }
     }
     return true;
   }
 
+  // For topbar and menu
   buildLayout() {
-    Log("buildLayout");
     this._container = new St.Widget();
-
     this._leftAirpodLabel = new St.Label({
       text: "...",
       y_align: Clutter.ActorAlign.CENTER,
       style_class: "left-airpod-label",
     });
-
     this._icon = new St.Icon({
       gicon: Gio.icon_new_for_string(
         this.path.toString() + "/icons/airpods-symbolic.svg"
@@ -288,66 +320,53 @@ class AipodsBatteryStatus extends Extension {
       height: 24,
       y: 4,
     });
-
     this._averageAirpodLabel = new St.Label({
       text: "...",
       y_align: Clutter.ActorAlign.CENTER,
       style_class: "average-airpod-label",
       y: 6,
-      x: 24,
+      x: AVERAGE_LABEL_X,
+      opacity: 0,
     });
     this._averageAirpodLabel.hide();
-
     this._rightAirpodLabel = new St.Label({
       text: "...",
       y_align: Clutter.ActorAlign.CENTER,
       style_class: "right-airpod-label",
     });
-
     this._caseIcon = new St.Icon({
       gicon: Gio.icon_new_for_string(this.path.toString() + "/case.svg"),
       style_class: "system-status-icon",
-      x: 22,
+      x: ICON_X,
     });
-
     this._caseLabel = new St.Label({
       text: "...",
       y_align: Clutter.ActorAlign.CENTER,
       style_class: "right-airpod-label",
     });
-
-    this._lastUpdateMenuItem = new PopupMenu.PopupMenuItem("Last updated: ...");
+    this._lastUpdateMenuItem = new PopupMenu.PopupMenuItem(
+      "Last Update Is Unknown"
+    );
     this._lastUpdateMenuItem.actor.add_style_class_name(
       "sub-menu-item-no-icon"
     );
-
     this._container.add_actor(this._icon);
     this._container.add_actor(this._averageAirpodLabel);
-
     if (this._averageAirpodLabel.visible) {
-      this._container.set_width(68);
-      this._averageAirpodLabel.set_x(24);
+      this._container.set_width(CONTAINER_WIDTH);
+      this._averageAirpodLabel.set_x(AVERAGE_LABEL_X);
     } else {
-      this._container.set_width(68);
-      this._icon.set_x(22);
+      this._container.set_width(CONTAINER_WIDTH_ICON);
+      this._icon.set_x(ICON_X_SMALL);
     }
-
-    /* 
-    box.add(this._leftAirpodLabel);
-    box.add(this._rightAirpodLabel);
-    box.add(this._caseIcon);
-    box.add(this._caseLabel);
-    */
-
     this._panelMenuButton = new PanelMenu.Button(
       0.5,
-      "AirpodsBatteryStatusPopup",
+      "AirPodsBatteryStatusPopup",
       false
     );
     this._panelMenuButton.add_child(this._container);
-    this._subMenuModelItem = new PopupMenu.PopupMenuItem("No AirPods detected");
+    this._subMenuModelItem = new PopupMenu.PopupMenuItem("No AirPods Detected");
     this._subMenuModelItem.actor.add_style_class_name("sub-menu-item-no-icon");
-
     this._subMenuCaseChargingItem = new PopupMenu.PopupImageMenuItem(
       "...",
       "battery-missing"
@@ -360,73 +379,34 @@ class AipodsBatteryStatus extends Extension {
       "...",
       "battery-missing"
     );
-
     this._panelMenuButton.menu.addMenuItem(this._subMenuModelItem);
     this._panelMenuButton.menu.addMenuItem(this._subMenuCaseChargingItem);
     this._panelMenuButton.menu.addMenuItem(this._subMenuLeftChargingItem);
     this._panelMenuButton.menu.addMenuItem(this._subMenuRightChargingItem);
-
     this._panelMenuButton.menu.addMenuItem(this._lastUpdateMenuItem);
-
     Main.panel.addToStatusArea(
-      "AirpodsBatteryStatus",
+      "AirPodsBatteryStatus",
       this._panelMenuButton,
       1
     );
-  }
-
-  getBatteryIcon(percentage, charging) {
-    let iconName = "battery-";
-    switch (true) {
-      case percentage < 0:
-        return "battery-missing";
-      case percentage <= 10:
-        iconName += "level-10";
-        break;
-      case percentage <= 40:
-        iconName += "level-40";
-        break;
-      case percentage <= 70:
-        iconName += "level-70";
-        break;
-      case percentage <= 100:
-        iconName += "level-100";
-        break;
-      default:
-        return "battery-missing";
-    }
-
-    return iconName + (charging ? "-charging" : "") + "-symbolic";
-  }
-
-  capitalize(string) {
-    return string.charAt(0).toUpperCase() + string.slice(1);
-  }
-
-  areAllMenuItemsHidden() {
-    return (
-      !this._subMenuCaseChargingItem.visible &&
-      !this._subMenuLeftChargingItem.visible &&
-      !this._subMenuRightChargingItem.visible
-    );
+    this._subMenuLeftChargingItem.hide();
+    this._subMenuRightChargingItem.hide();
+    this._subMenuCaseChargingItem.hide();
   }
 
   enable() {
-    Log("enable");
-    this.updateBatteryStatus();
-
+    logMessage("Extension enabled");
+    this.updateUI();
     this._timer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
-      this.updateBatteryStatus();
+      this.updateUI();
       return GLib.SOURCE_CONTINUE;
     });
   }
 
   disable() {
-    Log("disable");
-
+    logMessage("Extension disabled");
     this._panelMenuButton.destroy();
-    Main.panel.statusArea["AirpodsBatteryStatus"] = null;
-
+    Main.panel.statusArea["AirPodsBatteryStatus"] = null;
     if (this._timer) {
       GLib.source_remove(this._timer);
       this._timer = null;
@@ -434,28 +414,28 @@ class AipodsBatteryStatus extends Extension {
   }
 }
 
-export default class AirpodsBatteryStatusExtension {
+export default class AirPodsBatteryStatusExtension {
   constructor(extensionMeta) {
-    this.batteryStatus = null;
+    this.extensionInstance = null;
     this.extensionMeta = extensionMeta;
   }
 
   enable() {
-    if (!this.batteryStatus) {
-      this.batteryStatus = new AipodsBatteryStatus(this.extensionMeta);
-      this.batteryStatus.enable();
+    if (!this.extensionInstance) {
+      this.extensionInstance = new AirPodsBatteryStatus(this.extensionMeta);
+      this.extensionInstance.enable();
     }
   }
 
   disable() {
-    if (this.batteryStatus) {
-      this.batteryStatus.disable();
-      Main.panel.statusArea["AirpodsBatteryStatus"] = null;
-      this.batteryStatus = null;
+    if (this.extensionInstance) {
+      this.extensionInstance.disable();
+      Main.panel.statusArea["AirPodsBatteryStatus"] = null;
+      this.extensionInstance = null;
     }
   }
 }
 
-let Log = function (msg) {
-  log("[Airpods Battery Status] " + msg);
+let logMessage = (message) => {
+  log(`[AirPodsBatteryStatus] ${message}`);
 };
