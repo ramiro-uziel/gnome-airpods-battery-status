@@ -18,7 +18,6 @@ MAX_LINES = 10
 FILE_NAME = "/tmp/airstatus.out"
 
 def model_from_raw(raw: bytes) -> str:
-    # On 7th position we can get AirPods model, gen1, gen2, Pro or Max
     if chr(raw[7]) == 'e':
         return "AirPods Pro"
     elif chr(raw[7]) == '4':
@@ -73,7 +72,6 @@ async def fetch_airpods_raw_data() -> Optional[bytes]:
     return None
 
 def parse_airpods_data(raw: bytes) -> dict:
-    # Return blank data if airpods not found
     if not raw:
         return dict(status=0, model="AirPods not found")
 
@@ -128,7 +126,6 @@ def is_flipped(raw):
     return (int("" + chr(raw[10]), 16) & 0x02) == 0
 
 def is_bluetooth_adapter_powered_on(timeout_seconds=30):
-    """Check if the Bluetooth adapter is powered on."""
     start_time = time.time()
     while time.time() - start_time < timeout_seconds:
         try:
