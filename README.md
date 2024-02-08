@@ -17,7 +17,6 @@ https://github.com/ramiro-uziel/gnome-airpods-battery-status/assets/132919483/53
 
 </div>
 
-
 ## Features
 - Shows average value of Pods' batteries
 - Hides icons when the battery value is null, and dash value when all values are null. Has 3 minute timeout to hide them.
@@ -32,7 +31,6 @@ Has support for
 - AirPods Pro
 - AirPods Pro 2
 - AirPods Max
-
 
 > [!WARNING]
 > 1. The Python script used in this extension can misread info sometimes and can read other AirPods' battery info if used around many.
@@ -84,6 +82,7 @@ sudo systemctl enable airstatus
 Restart the system and enable the extension.
 
 ## Changelog
+
 - Updated for GNOME 45
 - New dash icon
 - The battery value in the dash is the average of both Pods' batteries
@@ -93,6 +92,7 @@ Restart the system and enable the extension.
 - Reimplementation of AirStatus Python script
 
 ## To-do
+
 - [ ] Add icon switching depending on model string
 - [ ] Add settings menu
 
