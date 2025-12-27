@@ -13,7 +13,7 @@ A GNOME Shell Extension to display the battery level of your AirPods in the top 
 
 https://github.com/ramiro-uziel/gnome-airpods-battery-status/assets/132919483/5363321e-009c-4fb7-adab-dd15e94ec421
 
-*Connect and disconnect animations. Yes it's 4 am.*
+*Connect and disconnect animations.*
 
 </div>
 
